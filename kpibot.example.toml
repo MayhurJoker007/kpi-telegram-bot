@@ -1,0 +1,68 @@
+title = "Field execution: daily summary"
+
+[database]
+# sqlite:///path.db, or postgresql://user:${PGPASSWORD}@host/db  (environment variables are expanded)
+url = "sqlite:///demo.db"
+
+[telegram]
+token_env = "TELEGRAM_BOT_TOKEN"
+chat_ids = [-1001234567890]
+
+[schedule]
+send_at = "07:30"
+timezone_offset_hours = 2
+
+# Each query gets :start and :end (ISO dates; use %(start)s / %(end)s on Postgres)
+# and returns one row per day: (day, value).
+
+[[kpi]]
+name = "Audits completed"
+unit = "audits"
+alert_below = 40
+chart = true
+sql = """
+select visited_on, count(*) from audit
+where visited_on between :start and :end
+group by visited_on
+"""
+
+[[kpi]]
+name = "QC pass rate"
+unit = "%"
+decimals = 1
+alert_below = 85
+sql = """
+select visited_on, 100.0 * avg(passed_qc) from audit
+where visited_on between :start and :end
+group by visited_on
+"""
+
+[[kpi]]
+name = "Average audit score"
+decimals = 1
+sql = """
+select visited_on, avg(score) from audit
+where visited_on between :start and :end
+group by visited_on
+"""
+
+[[kpi]]
+name = "Order value"
+unit = "R"
+sql = """
+select placed_on, sum(total) from orders
+where placed_on between :start and :end and status <> 'cancelled'
+group by placed_on
+"""
+
+[[kpi]]
+name = "Cancellation rate"
+unit = "%"
+decimals = 1
+higher_is_better = false
+alert_above = 15
+sql = """
+select placed_on, 100.0 * sum(status = 'cancelled') / count(*) from orders
+where placed_on between :start and :end
+group by placed_on
+"""
